@@ -5,10 +5,11 @@ import AVFoundation
 final class AudioRecorder {
     private let engine = AVAudioEngine()
     private var converter: AVAudioConverter?
-    private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
-                                             sampleRate: 16_000,
-                                             channels: 1,
-                                             interleaved: false)!
+    private let targetFormat = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false)!
     private var samples: [Float] = []
     private let lock = NSLock()
 

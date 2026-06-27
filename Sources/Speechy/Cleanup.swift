@@ -21,9 +21,9 @@ enum Cleanup {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: [
             "model": Settings.shared.cleanupModel,
-            "prompt": "",          // empty prompt just loads the model into memory
+            "prompt": "",  // empty prompt just loads the model into memory
             "stream": false,
-            "keep_alive": "5m"
+            "keep_alive": "5m",
         ])
         request.timeoutInterval = 30
         _ = try? await URLSession.shared.data(for: request)
@@ -31,20 +31,23 @@ enum Cleanup {
 
     // MARK: - LLM path (Ollama)
 
+    // Prompt copy is long-form by nature.
+    // swiftlint:disable line_length
     private static let systemPrompt = """
-    Add structure to this text — paragraph breaks, and bullet lists only for explicit lists. Change nothing else.
-    - Default to paragraphs: group related sentences, with a blank line between paragraphs.
-    - Use a bulleted list only when the speaker explicitly lists three or more distinct items. Never bullet ordinary prose.
-    Keep every word EXACTLY as written — never paraphrase, simplify, reword, reorder, add, or remove anything. Your job is to prettify, not rewrite. Output only the restructured text.
-    """
+        Add structure to this text — paragraph breaks, and bullet lists only for explicit lists. Change nothing else.
+        - Default to paragraphs: group related sentences, with a blank line between paragraphs.
+        - Use a bulleted list only when the speaker explicitly lists three or more distinct items. Never bullet ordinary prose.
+        Keep every word EXACTLY as written — never paraphrase, simplify, reword, reorder, add, or remove anything. Your job is to prettify, not rewrite. Output only the restructured text.
+        """
+    // swiftlint:enable line_length
 
     private static func requestBody(_ text: String, stream: Bool) -> Data? {
         try? JSONSerialization.data(withJSONObject: [
             "model": Settings.shared.cleanupModel,
             "prompt": "\(systemPrompt)\n\nTranscript:\n\(text)\n\nFormatted:",
             "stream": stream,
-            "keep_alive": "5m",             // warm while actively dictating, release after 5 min idle
-            "options": ["temperature": 0.2]
+            "keep_alive": "5m",  // warm while actively dictating, release after 5 min idle
+            "options": ["temperature": 0.2],
         ])
     }
 
@@ -61,7 +64,8 @@ enum Cleanup {
         let r = ruleBased(trimmed); await onChunk(r); return r
     }
 
-    private static func streamLLM(_ text: String, onChunk: @escaping (String) async -> Void) async -> String? {
+    private static func streamLLM(_ text: String, onChunk: @escaping (String) async -> Void) async -> String?
+    {
         var request = URLRequest(url: ollamaURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -74,7 +78,8 @@ enum Cleanup {
             var full = ""
             for try await line in bytes.lines {
                 guard let data = line.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { continue }
                 if let piece = json["response"] as? String, !piece.isEmpty {
                     full += piece
                     await onChunk(piece)
@@ -83,7 +88,7 @@ enum Cleanup {
             }
             return full.isEmpty ? nil : full.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
-            return nil   // Ollama not running / timed out → caller falls back.
+            return nil  // Ollama not running / timed out → caller falls back.
         }
     }
 

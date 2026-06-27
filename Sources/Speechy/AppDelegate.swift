@@ -59,14 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onStopHold = { [weak self] in self?.stopAndProcess() }
         hotkeys.onCancelHold = { [weak self] in self?.cancelRecording() }
         hotkeys.onToggleLock = { [weak self] on in
-            if on { self?.startRecording(locked: true) }
-            else { self?.stopAndProcess() }
+            if on { self?.startRecording(locked: true) } else { self?.stopAndProcess() }
         }
         // Clicking the floaty toggles hands-free recording.
         state.onActivate = { [weak self] in
             guard let self else { return }
-            if self.recorder.isRecording { self.stopAndProcess() }
-            else { self.startRecording(locked: true) }
+            if self.recorder.isRecording { self.stopAndProcess() } else { self.startRecording(locked: true) }
         }
     }
 
@@ -252,7 +250,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         modelItem.submenu = modelMenu
         sub.addItem(modelItem)
 
-        let vocab = NSMenuItem(title: "Custom vocabulary…", action: #selector(editVocabulary), keyEquivalent: "")
+        let vocab = NSMenuItem(
+            title: "Custom vocabulary…", action: #selector(editVocabulary), keyEquivalent: "")
         vocab.target = self
         sub.addItem(vocab)
 
@@ -265,7 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pp = Settings.shared.postProcessingEnabled
         let item = NSMenuItem(title: "Post-processing", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        sub.autoenablesItems = false   // so we can gray out the sub-options when master is off
+        sub.autoenablesItems = false  // so we can gray out the sub-options when master is off
 
         let enabled = NSMenuItem(title: "Enabled", action: #selector(togglePostProcessing), keyEquivalent: "")
         enabled.target = self
@@ -273,15 +272,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sub.addItem(enabled)
         sub.addItem(.separator())
 
-        let structuring = NSMenuItem(title: "Structuring (lists & paragraphs)",
-                                     action: #selector(toggleCleanup), keyEquivalent: "")
+        let structuring = NSMenuItem(
+            title: "Structuring (lists & paragraphs)",
+            action: #selector(toggleCleanup), keyEquivalent: "")
         structuring.target = self
         structuring.state = Settings.shared.cleanupEnabled ? .on : .off
         structuring.isEnabled = pp
         sub.addItem(structuring)
 
-        let casing = NSMenuItem(title: "Casing & spacing (context-aware)",
-                                action: #selector(toggleSmartInsert), keyEquivalent: "")
+        let casing = NSMenuItem(
+            title: "Casing & spacing (context-aware)",
+            action: #selector(toggleSmartInsert), keyEquivalent: "")
         casing.target = self
         casing.state = Settings.shared.smartInsert ? .on : .off
         casing.isEnabled = pp
@@ -293,7 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         modelItem.isEnabled = pp
         let modelMenu = NSMenu()
         for m in Settings.cleanupModels {
-            let installed = installedCleanup.contains(m.id)            // live from Ollama, not hard-coded
+            let installed = installedCleanup.contains(m.id)  // live from Ollama, not hard-coded
             let title = installed ? m.label : "\(m.label) — download"
             let mi = NSMenuItem(title: title, action: #selector(selectCleanupModel(_:)), keyEquivalent: "")
             mi.target = self
@@ -378,7 +379,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func editVocabulary() {
         let alert = NSAlert()
         alert.messageText = "Custom vocabulary / prompt"
-        alert.informativeText = "Names, jargon, product terms — biases Whisper toward these. One line is fine."
+        alert.informativeText =
+            "Names, jargon, product terms — biases Whisper toward these. One line is fine."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
 

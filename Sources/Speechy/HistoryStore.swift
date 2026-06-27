@@ -4,9 +4,9 @@ import Foundation
 struct TranscriptEntry: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
-    let raw: String         // exactly what Whisper produced
-    let cleaned: String     // post-cleanup text (== raw if cleanup off)
-    let app: String         // frontmost app at capture time
+    let raw: String  // exactly what Whisper produced
+    let cleaned: String  // post-cleanup text (== raw if cleanup off)
+    let app: String  // frontmost app at capture time
 
     var display: String { cleaned.isEmpty ? raw : cleaned }
 }
@@ -36,7 +36,8 @@ final class HistoryStore {
         let entry = TranscriptEntry(id: UUID(), timestamp: Date(), raw: raw, cleaned: cleaned, app: app)
         queue.sync {
             if let line = try? Self.encoder.encode(entry),
-               var text = String(data: line, encoding: .utf8) {
+                var text = String(data: line, encoding: .utf8)
+            {
                 text += "\n"
                 appendString(text)
             }
@@ -70,7 +71,8 @@ final class HistoryStore {
 
     private func loadAll() -> [TranscriptEntry] {
         guard let data = try? Data(contentsOf: fileURL),
-              let text = String(data: data, encoding: .utf8) else { return [] }
+            let text = String(data: data, encoding: .utf8)
+        else { return [] }
         return text.split(separator: "\n").compactMap { line in
             guard let d = line.data(using: .utf8) else { return nil }
             return try? Self.decoder.decode(TranscriptEntry.self, from: d)
@@ -80,7 +82,8 @@ final class HistoryStore {
     private func appendString(_ s: String) {
         guard let data = s.data(using: .utf8) else { return }
         if FileManager.default.fileExists(atPath: fileURL.path),
-           let handle = try? FileHandle(forWritingTo: fileURL) {
+            let handle = try? FileHandle(forWritingTo: fileURL)
+        {
             defer { try? handle.close() }
             _ = try? handle.seekToEnd()
             try? handle.write(contentsOf: data)

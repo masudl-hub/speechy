@@ -18,11 +18,11 @@ final class FloatingPanel: NSPanel {
         isFloatingPanel = true
         level = .statusBar
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        isMovableByWindowBackground = false   // we drag via the pill's gesture instead
+        isMovableByWindowBackground = false  // we drag via the pill's gesture instead
         hidesOnDeactivate = false
         backgroundColor = .clear
         isOpaque = false
-        hasShadow = false                     // shadow is drawn on the SwiftUI capsule
+        hasShadow = false  // shadow is drawn on the SwiftUI capsule
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
 
@@ -49,7 +49,7 @@ final class FloatingPanel: NSPanel {
     private func move(by delta: CGSize) {
         var origin = frame.origin
         origin.x += delta.width
-        origin.y -= delta.height   // SwiftUI y is top-down; screen y is bottom-up
+        origin.y -= delta.height  // SwiftUI y is top-down; screen y is bottom-up
         setFrameOrigin(origin)
     }
 

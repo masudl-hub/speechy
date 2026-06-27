@@ -11,7 +11,8 @@ enum Ollama {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let models = json["models"] as? [[String: Any]] else { return [] }
+                let models = json["models"] as? [[String: Any]]
+            else { return [] }
             return Set(models.compactMap { $0["name"] as? String })
         } catch {
             return []

@@ -12,9 +12,10 @@ network call is to `localhost` (Ollama, optional).
 ## Build & run
 
 ```bash
-swift build                 # debug compile (fast iteration)
-./scripts/build_app.sh       # release build → assembles + ad-hoc-signs Speechy.app
-open Speechy.app             # run (or install to /Applications first for stable TCC grants)
+swift build                  # debug compile (fast iteration)
+./scripts/build_app.sh        # release build → assembles + signs Speechy.app (stable self-signed id)
+open Speechy.app              # run (or install to /Applications first for stable TCC grants)
+./scripts/lint.sh             # build + SwiftLint + swift-format (use --fix to auto-format)
 ```
 
 - **Swift 5 language mode** is set in `Package.swift` (`.swiftLanguageMode(.v5)`) — the app is
@@ -22,6 +23,15 @@ open Speechy.app             # run (or install to /Applications first for stable
   unless you're prepared to actor-annotate everything.
 - Requires macOS 14+ (WhisperKit constraint). Builds with Command Line Tools; **no Xcode needed**.
 - The release build recompiles WhisperKit (~70s cold).
+- **Signing:** `build_app.sh` signs with a stable self-signed identity ("Speechy Self-Signed") so the
+  Accessibility/Mic grants survive rebuilds. Create it once via `scripts/make_signing_identity.sh`;
+  it falls back to ad-hoc if absent.
+
+## Code quality
+
+- **SwiftLint** (`.swiftlint.yml`) + **swift-format** (`.swift-format`) — run via `./scripts/lint.sh`.
+  `--fix` auto-formats. CI (`.github/workflows/ci.yml`) runs build + both linters (strict) on every push/PR.
+- Keep the tree at **zero** lint findings.
 
 ## Layout (`Sources/Speechy/`, one file per responsibility)
 
@@ -30,14 +40,17 @@ open Speechy.app             # run (or install to /Applications first for stable
 | `main.swift` | Entry point; `MainActor.assumeIsolated` bootstraps `NSApplication` as `.accessory`. |
 | `AppDelegate.swift` | Orchestrator. Owns the status item + menu, wires hotkey → pipeline, manages permissions/model load. **The pipeline lives in `stopAndProcess()`.** |
 | `AppState.swift` | `@MainActor ObservableObject` the floaty binds to (`phase`, `audioLevel`, `lastText`). |
-| `FloatingPanel.swift` | Non-activating, all-Spaces `NSPanel` that never steals focus. |
-| `FloatyView.swift` | SwiftUI pill UI + level meter. |
-| `HotkeyManager.swift` | `CGEventTap` (listen-only) detecting **hold** vs **double-tap** on one configurable key. |
+| `FloatingPanel.swift` | Fixed-size, non-activating, all-Spaces `NSPanel`; pill animates inside it (no hover jitter); draggable, position persists. |
+| `FloatyView.swift` | SwiftUI pill UI: collapsed dots / hover hint / live waveform / processing oscillation; click-to-toggle. |
+| `HotkeyManager.swift` | Active `CGEventTap`: **hold Fn** = push-to-talk, **tap Fn+Space** = lock toggle (Space consumed). |
 | `AudioRecorder.swift` | `AVAudioEngine` capture → `AVAudioConverter` → 16 kHz mono `[Float]` + RMS level. |
-| `Transcriber.swift` | `actor` wrapping WhisperKit; model load + tuned `DecodingOptions`. |
-| `Cleanup.swift` | Ollama HTTP cleanup with rule-based fallback (spoken punctuation, filler strip, capitalization). |
-| `TextInjector.swift` | Pasteboard snapshot → set text → synthesize ⌘V → restore clipboard. |
-| `HistoryStore.swift` | JSONL log in App Support, 24h prune. Written **before** paste so text is never lost. |
+| `Transcriber.swift` | `actor` wrapping WhisperKit; tuned `DecodingOptions`, real download progress, 0-byte self-heal. |
+| `Prettifier.swift` | **Deterministic** zero-latency layer: spoken commands, filler, capitalization, spacing. Never changes words. |
+| `Cleanup.swift` | LLM **structure-only** pass via Ollama (paragraphs/lists), **streamed**; Prettifier as fallback. |
+| `Ollama.swift` | Local Ollama client: list installed models + pull on demand. |
+| `TextContext.swift` | Reads cursor context via AX; `SmartJoin` (spacing/casing on insert) + `StreamInserter` (live typing). |
+| `TextInjector.swift` | Clipboard paste (atomic) **and** synthetic Unicode typing (`type`) for streaming insertion. |
+| `HistoryStore.swift` | JSONL log in App Support, 24h prune. |
 | `PermissionsManager.swift` | Mic / Accessibility checks + deep links into System Settings panes. |
 | `Settings.swift` | `UserDefaults`-backed tuners (model, language, cleanup, custom prompt, hotkey). |
 

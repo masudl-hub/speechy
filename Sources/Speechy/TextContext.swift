@@ -15,15 +15,24 @@ enum TextContext {
         let systemWide = AXUIElementCreateSystemWide()
 
         var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+        guard
+            AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused)
+                == .success,
+            CFGetTypeID(focused) == AXUIElementGetTypeID()
+        else { return nil }
+        // Safe: guarded by the CFGetTypeID check above; CFTypeRef→AXUIElement has no `as?` bridge.
+        // swiftlint:disable:next force_cast
         let element = focused as! AXUIElement
 
         // Cursor position (UTF-16 offset).
         var rangeRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
-              let rangeValue = rangeRef, CFGetTypeID(rangeValue) == AXValueGetTypeID() else { return nil }
+        guard
+            AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef)
+                == .success,
+            let rangeValue = rangeRef, CFGetTypeID(rangeValue) == AXValueGetTypeID()
+        else { return nil }
         var selection = CFRange()
+        // swiftlint:disable:next force_cast
         guard AXValueGetValue(rangeValue as! AXValue, .cfRange, &selection) else { return nil }
         guard selection.location > 0 else { return "" }
 
@@ -34,7 +43,8 @@ enum TextContext {
             var sub: CFTypeRef?
             if AXUIElementCopyParameterizedAttributeValue(
                 element, kAXStringForRangeParameterizedAttribute as CFString, axRange, &sub) == .success,
-               let s = sub as? String {
+                let s = sub as? String
+            {
                 return s
             }
         }
@@ -42,7 +52,8 @@ enum TextContext {
         // Fallback: read the whole value and slice (works in more fields).
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-           let full = valueRef as? String {
+            let full = valueRef as? String
+        {
             let ns = full as NSString
             let loc = min(selection.location, ns.length)
             let st = max(0, loc - maxChars)
@@ -57,7 +68,7 @@ enum SmartJoin {
 
     static func adjust(_ text: String, preceding: String?) -> String {
         guard !text.isEmpty else { return text }
-        guard let preceding else { return text }   // unknown context → leave as-is
+        guard let preceding else { return text }  // unknown context → leave as-is
 
         var out = text
 
@@ -65,9 +76,9 @@ enum SmartJoin {
         let lastChar = preceding.last
         let atSentenceStart: Bool
         if lastChar == nil {
-            atSentenceStart = true                                   // empty field
+            atSentenceStart = true  // empty field
         } else if lastChar == "\n" {
-            atSentenceStart = true                                   // fresh line
+            atSentenceStart = true  // fresh line
         } else if let c = preceding.last(where: { !$0.isWhitespace }) {
             atSentenceStart = ".!?".contains(c)
         } else {
@@ -79,13 +90,13 @@ enum SmartJoin {
         let needsSpace: Bool
         switch lastChar {
         case nil:
-            needsSpace = false                                       // empty field
+            needsSpace = false  // empty field
         case let c? where c.isWhitespace:
-            needsSpace = false                                       // already spaced
+            needsSpace = false  // already spaced
         case let c? where "([{<\"'\u{201C}\u{2018}".contains(c):
-            needsSpace = false                                       // after an opener/quote
+            needsSpace = false  // after an opener/quote
         default:
-            needsSpace = true                                        // joining onto a word/punctuation
+            needsSpace = true  // joining onto a word/punctuation
         }
         if needsSpace { out = " " + out }
         return out
@@ -126,11 +137,11 @@ final class StreamInserter {
     func feed(_ piece: String) {
         if !started {
             let stripped = String(piece.drop(while: { $0.isWhitespace }))
-            guard !stripped.isEmpty else { return }      // ignore leading-whitespace tokens
+            guard !stripped.isEmpty else { return }  // ignore leading-whitespace tokens
             started = true
             TextInjector.type(casing ? SmartJoin.adjust(stripped, preceding: preceding) : stripped)
         } else if piece.allSatisfy({ $0.isWhitespace }) {
-            pendingWhitespace += piece                    // hold — might be trailing
+            pendingWhitespace += piece  // hold — might be trailing
         } else {
             TextInjector.type(pendingWhitespace + piece)
             pendingWhitespace = ""

@@ -47,7 +47,7 @@ enum TextInjector {
         let source = CGEventSource(stateID: .combinedSessionState)
         let units = Array(text.utf16)
         var i = 0
-        let stride = 16   // keyboardSetUnicodeString is reliable in small batches
+        let stride = 16  // keyboardSetUnicodeString is reliable in small batches
         while i < units.count {
             var batch = Array(units[i..<min(i + stride, units.count)])
             if let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) {
@@ -68,7 +68,7 @@ enum TextInjector {
 
     private static func postCommandV() {
         let source = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 0x09 // 'v'
+        let vKey: CGKeyCode = 0x09  // 'v'
 
         let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true)
         down?.flags = .maskCommand

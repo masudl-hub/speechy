@@ -25,8 +25,9 @@ final class Settings {
     var floatyOrigin: CGPoint? {
         get {
             guard defaults.object(forKey: Key.floatyX) != nil else { return nil }
-            return CGPoint(x: defaults.double(forKey: Key.floatyX),
-                           y: defaults.double(forKey: Key.floatyY))
+            return CGPoint(
+                x: defaults.double(forKey: Key.floatyX),
+                y: defaults.double(forKey: Key.floatyY))
         }
         set {
             guard let p = newValue else { return }
@@ -117,7 +118,7 @@ final class Settings {
     static let availableModels: [(id: String, label: String)] = [
         ("large-v3-v20240930_turbo", "large-v3-turbo (default, fast + accurate)"),
         ("large-v3", "large-v3 (max accuracy, slower)"),
-        ("distil-large-v3", "distil-large-v3 (fast, English-leaning)")
+        ("distil-large-v3", "distil-large-v3 (fast, English-leaning)"),
     ]
 
     /// Catalog of selectable cleanup (text-formatting) models — Qwen + Gemma.
@@ -128,6 +129,6 @@ final class Settings {
         ("qwen2.5:1.5b-instruct", "Qwen2.5 1.5B (fastest)"),
         ("qwen2.5:3b-instruct", "Qwen2.5 3B (default, balanced)"),
         ("qwen2.5:7b-instruct", "Qwen2.5 7B (best, slower)"),
-        ("gemma2:2b", "Gemma 2 2B (small alternate)")
+        ("gemma2:2b", "Gemma 2 2B (small alternate)"),
     ]
 }

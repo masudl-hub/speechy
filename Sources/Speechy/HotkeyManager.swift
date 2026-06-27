@@ -18,22 +18,23 @@ final class HotkeyManager {
 
     private let holdThreshold: TimeInterval = 0.35  // hold Fn longer than this → push-to-talk
 
-    private var modCode: CGKeyCode { CGKeyCode(Settings.shared.hotkeyKeyCode) } // 63 = Fn
+    private var modCode: CGKeyCode { CGKeyCode(Settings.shared.hotkeyKeyCode) }  // 63 = Fn
     private var holdCode: CGKeyCode { CGKeyCode(Settings.shared.holdKeyCode) }  // 49 = Space
 
     // Gesture state
     private var fnDown = false
-    private var comboUsed = false      // Space was pressed during this Fn press
-    private var pttActive = false      // push-to-talk recording (from holding Fn)
+    private var comboUsed = false  // Space was pressed during this Fn press
+    private var pttActive = false  // push-to-talk recording (from holding Fn)
     private var lockMode = false
     private var holdWork: DispatchWorkItem?
 
     func start() -> Bool {
-        stop() // idempotent
+        stop()  // idempotent
 
-        let mask = (1 << CGEventType.flagsChanged.rawValue)
-                 | (1 << CGEventType.keyDown.rawValue)
-                 | (1 << CGEventType.keyUp.rawValue)
+        let mask =
+            (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.keyUp.rawValue)
 
         let callback: CGEventTapCallBack = { _, type, event, refcon in
             guard let refcon else { return Unmanaged.passUnretained(event) }
@@ -43,15 +44,17 @@ final class HotkeyManager {
                 : Unmanaged.passUnretained(event)
         }
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(mask),
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
-            return false // Accessibility not granted yet
+        guard
+            let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: CGEventMask(mask),
+                callback: callback,
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            )
+        else {
+            return false  // Accessibility not granted yet
         }
 
         eventTap = tap
@@ -83,7 +86,7 @@ final class HotkeyManager {
 
         if type == .flagsChanged, code == modCode {
             handleFn(pressed: fn)
-            return false // never consume Fn itself
+            return false  // never consume Fn itself
         }
 
         if code == holdCode {
@@ -92,14 +95,14 @@ final class HotkeyManager {
                 // Fn + Space → toggle lock.
                 comboUsed = true
                 cancelHoldTimer()
-                if pttActive {            // a hold had just begun — abandon it
+                if pttActive {  // a hold had just begun — abandon it
                     pttActive = false
                     onCancelHold?()
                 }
                 toggleLock()
-                return true               // swallow the Space
+                return true  // swallow the Space
             case .keyUp where comboUsed:
-                return true               // swallow the matching key-up too
+                return true  // swallow the matching key-up too
             default:
                 break
             }
@@ -126,12 +129,12 @@ final class HotkeyManager {
         fnDown = false
         cancelHoldTimer()
 
-        if pttActive {                    // releasing a held Fn → transcribe
+        if pttActive {  // releasing a held Fn → transcribe
             pttActive = false
             onStopHold?()
             return
         }
-        if comboUsed {                    // combo already handled on Space-down
+        if comboUsed {  // combo already handled on Space-down
             comboUsed = false
             return
         }

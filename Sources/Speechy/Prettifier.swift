@@ -12,21 +12,24 @@ enum Prettifier {
 
         // 1. Spoken punctuation / formatting commands.
         for (spoken, symbol) in spokenCommands {
-            t = t.replacingOccurrences(of: "\\b\(spoken)\\b", with: symbol,
-                                       options: [.regularExpression, .caseInsensitive])
+            t = t.replacingOccurrences(
+                of: "\\b\(spoken)\\b", with: symbol,
+                options: [.regularExpression, .caseInsensitive])
         }
 
         // 2. Filler words (conservative — only unambiguous fillers; an optional
         //    trailing comma is swallowed with them).
         for f in fillers {
-            t = t.replacingOccurrences(of: "\\b\(f)\\b,?", with: "",
-                                       options: [.regularExpression, .caseInsensitive])
+            t = t.replacingOccurrences(
+                of: "\\b\(f)\\b,?", with: "",
+                options: [.regularExpression, .caseInsensitive])
         }
 
-        // 3. Spacing tidy-ups (safe ones only — no reformatting of numbers/code).
-        t = t.replacingOccurrences(of: " +([,.!?;:])", with: "$1", options: .regularExpression) // no space before punctuation
-        t = t.replacingOccurrences(of: "[ \\t]{2,}", with: " ", options: .regularExpression)       // collapse runs of spaces
-        t = t.replacingOccurrences(of: " +\\n", with: "\n", options: .regularExpression)            // no trailing space before newline
+        // 3. Spacing tidy-ups (safe ones only — no reformatting of numbers/code):
+        //    no space before punctuation, collapse space runs, strip trailing space before newline.
+        t = t.replacingOccurrences(of: " +([,.!?;:])", with: "$1", options: .regularExpression)
+        t = t.replacingOccurrences(of: "[ \\t]{2,}", with: " ", options: .regularExpression)
+        t = t.replacingOccurrences(of: " +\\n", with: "\n", options: .regularExpression)
 
         // 4. Capitalization: sentence starts + standalone "i" → "I".
         t = capitalizeSentences(t)
@@ -50,7 +53,7 @@ enum Prettifier {
         ("exclamation mark", "!"),
         ("exclamation point", "!"),
         ("colon", ":"),
-        ("semicolon", ";")
+        ("semicolon", ";"),
     ]
 
     private static let fillers = ["um", "uh", "erm", "uhh", "uhm", "hmm", "you know"]

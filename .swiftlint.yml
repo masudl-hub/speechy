@@ -1,0 +1,50 @@
+# SwiftLint configuration for Speechy
+included:
+  - Sources
+excluded:
+  - .build
+  - Speechy.app
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+
+function_body_length:
+  warning: 90
+  error: 150
+
+type_body_length:
+  warning: 400
+  error: 600
+
+file_length:
+  warning: 500
+  error: 800
+
+# Short names like `t`, `i`, `e` are idiomatic in tight loops here.
+identifier_name:
+  min_length:
+    warning: 1
+  max_length:
+    warning: 60
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+  - first_where
+  - sorted_first_last
+  - redundant_nil_coalescing
+  - toggle_bool
+  - explicit_init
+  - fatal_error_message
+  - empty_string
+  - unneeded_parentheses_in_closure_argument
+
+disabled_rules:
+  - todo
+  # Formatting is owned by swift-format; disable SwiftLint rules that conflict with it.
+  - trailing_comma   # swift-format adds trailing commas in multiline literals
+  - opening_brace    # swift-format may place braces on a new line for long signatures

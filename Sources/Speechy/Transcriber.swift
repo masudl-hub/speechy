@@ -54,14 +54,18 @@ actor Transcriber {
         .appendingPathComponent("huggingface/models/argmaxinc/whisperkit-coreml", isDirectory: true)
 
     private static func modelFolder(for model: String) -> URL? {
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: modelsRoot.path) else { return nil }
-        let match = entries.first(where: { $0.hasSuffix(model) }) ?? entries.first(where: { $0.contains(model) })
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: modelsRoot.path) else {
+            return nil
+        }
+        let match =
+            entries.first(where: { $0.hasSuffix(model) }) ?? entries.first(where: { $0.contains(model) })
         return match.map { modelsRoot.appendingPathComponent($0, isDirectory: true) }
     }
 
     private static func modelSizeMB(for model: String) -> Int {
         guard let folder = modelFolder(for: model),
-              let en = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+            let en = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.fileSizeKey])
+        else { return 0 }
         var total = 0
         for case let f as URL in en {
             total += (try? f.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -72,9 +76,9 @@ actor Transcriber {
     private static func removeIfCorrupt(model: String) {
         guard let folder = modelFolder(for: model) else { return }
         let decoder = folder.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin")
-        let size = (try? FileManager.default.attributesOfItem(atPath: decoder.path)[.size] as? Int) ?? nil
-        if size == 0 {
-            try? FileManager.default.removeItem(at: folder)   // truncated decoder → reset
+        let attrs = try? FileManager.default.attributesOfItem(atPath: decoder.path)
+        if (attrs?[.size] as? Int) == 0 {
+            try? FileManager.default.removeItem(at: folder)  // truncated decoder → reset
         }
     }
 
@@ -91,11 +95,11 @@ actor Transcriber {
 
         // Silence guards — stop Whisper hallucinating ("you", "thank you", "Hmm")
         // on near-empty audio, which would otherwise paste junk on a stray tap.
-        guard samples.count > 8_000 else { return "" }      // < ~0.5s → ignore
+        guard samples.count > 8_000 else { return "" }  // < ~0.5s → ignore
         var sum: Float = 0
         for v in samples { sum += v * v }
         let rms = sqrtf(sum / Float(samples.count))
-        guard rms > 0.006 else { return "" }                // essentially silence → ignore
+        guard rms > 0.006 else { return "" }  // essentially silence → ignore
 
         var options = DecodingOptions()
         options.task = .transcribe
@@ -146,7 +150,7 @@ actor Transcriber {
 
     private static let outroHallucinations: Set<String> = [
         "thank you for watching", "thanks for watching", "please subscribe",
-        "thank you for watching!", "thanks for watching!"
+        "thank you for watching!", "thanks for watching!",
     ]
 }
 

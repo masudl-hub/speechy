@@ -1,5 +1,5 @@
-import AppKit
 import AVFoundation
+import AppKit
 import ApplicationServices
 
 /// Checks and requests the three TCC grants Speechy needs:

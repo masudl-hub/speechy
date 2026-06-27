@@ -37,8 +37,12 @@ struct FloatyView: View {
                         .onEnded { value in
                             lastTranslation = .zero
                             let moved = abs(value.translation.width) + abs(value.translation.height)
-                            if moved < 4 { state.onActivate?() }   // it was a click
-                            else { onMoveEnded() }                  // it was a drag
+                            if moved < 4 {
+                                state.onActivate?()
+                            }  // it was a click
+                            else {
+                                onMoveEnded()
+                            }  // it was a drag
                         }
                 )
                 .animation(.spring(response: 0.3, dampingFraction: 0.85), value: pillSize)
@@ -69,7 +73,7 @@ struct FloatyView: View {
             Waveform(level: CGFloat(state.audioLevel), live: true).padding(.horizontal, 10)
 
         case .transcribing, .cleaning, .pasting:
-            Waveform(level: 0.6, live: false).padding(.horizontal, 10)   // self-oscillating
+            Waveform(level: 0.6, live: false).padding(.horizontal, 10)  // self-oscillating
 
         case .loadingModel(let p):
             Text("\(Int(p * 100))%")
