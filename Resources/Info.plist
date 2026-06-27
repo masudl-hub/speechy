@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Speechy</string>
+    <key>CFBundleDisplayName</key>
+    <string>Speechy</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.speechy.app</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>Speechy</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <!-- Menu-bar-only app: no Dock icon, no main window. -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Speechy records your voice locally to transcribe it with an on-device Whisper model. Audio never leaves your Mac.</string>
+</dict>
+</plist>

@@ -1,0 +1,15 @@
+# Swift / SwiftPM build artifacts
+.build/
+Package.resolved
+*.o
+*.swiftmodule
+
+# Assembled app bundle (built via scripts/build_app.sh)
+Speechy.app/
+*.dmg
+
+# macOS
+.DS_Store
+
+# Local tooling, plans, scratch
+.claude/
