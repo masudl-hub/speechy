@@ -33,18 +33,36 @@ enum Cleanup {
 
     // Prompt copy is long-form by nature.
     // swiftlint:disable line_length
-    private static let systemPrompt = """
+
+    /// Structure-only: never changes a word (the safe default, any model).
+    private static let structurePrompt = """
         Add structure to this text — paragraph breaks, and bullet lists only for explicit lists. Change nothing else.
         - Default to paragraphs: group related sentences, with a blank line between paragraphs.
         - Use a bulleted list only when the speaker explicitly lists three or more distinct items. Never bullet ordinary prose.
         Keep every word EXACTLY as written — never paraphrase, simplify, reword, reorder, add, or remove anything. Your job is to prettify, not rewrite. Output only the restructured text.
         """
+
+    /// Structure + self-correction: also resolves spoken corrections. Only used
+    /// on a 7B model (small models invert meaning on non-corrections).
+    private static let correctionPrompt = """
+        Clean up and lightly structure this dictation.
+        - If the speaker clearly corrects themselves ("no I mean", "actually no", "sorry I mean", "scratch that", "wait"), apply it: keep what they ended up meaning, drop the retracted part. If there is no clear correction, keep every word.
+        - Group sentences into paragraphs (blank line between); use bullets only for an explicit list of three or more items.
+        - Otherwise never paraphrase, reword, or change anything.
+        Output only the cleaned text.
+        """
     // swiftlint:enable line_length
+
+    /// Self-correction is opt-in AND gated to 7B (small models are unsafe at it).
+    private static var activePrompt: String {
+        let on = Settings.shared.selfCorrection && Settings.shared.cleanupModel.contains("7b")
+        return on ? correctionPrompt : structurePrompt
+    }
 
     private static func requestBody(_ text: String, stream: Bool) -> Data? {
         try? JSONSerialization.data(withJSONObject: [
             "model": Settings.shared.cleanupModel,
-            "prompt": "\(systemPrompt)\n\nTranscript:\n\(text)\n\nFormatted:",
+            "prompt": "\(activePrompt)\n\nTranscript:\n\(text)\n\nFormatted:",
             "stream": stream,
             "keep_alive": "5m",  // warm while actively dictating, release after 5 min idle
             "options": ["temperature": 0.2],

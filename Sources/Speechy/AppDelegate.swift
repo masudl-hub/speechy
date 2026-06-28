@@ -324,6 +324,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         casing.isEnabled = pp
         sub.addItem(casing)
 
+        // Self-correction only works safely on 7B; label reflects that requirement.
+        let correction = NSMenuItem(
+            title: "Self-correction (7B only)",
+            action: #selector(toggleSelfCorrection), keyEquivalent: "")
+        correction.target = self
+        correction.state = Settings.shared.selfCorrection ? .on : .off
+        correction.isEnabled = pp && Settings.shared.cleanupEnabled
+        sub.addItem(correction)
+
         sub.addItem(.separator())
 
         let modelItem = NSMenuItem(title: "Model", action: nil, keyEquivalent: "")
@@ -379,6 +388,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePostProcessing() {
         Settings.shared.postProcessingEnabled.toggle()
+        statusItem?.menu = buildMenu()
+    }
+
+    @objc private func toggleSelfCorrection() {
+        Settings.shared.selfCorrection.toggle()
         statusItem?.menu = buildMenu()
     }
 

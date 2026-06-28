@@ -39,12 +39,23 @@ enum TextInjector {
         }
     }
 
-    /// Inserts text at the cursor by synthesizing Unicode key events — no
-    /// clipboard involved. Used for streaming insertion so text appears live as
-    /// the cleanup model generates it.
+    /// Inserts text at the cursor by synthesizing key events — no clipboard.
+    /// Used for streaming insertion so text appears live as the model generates
+    /// it. Newlines are posted as real Return key presses (a Unicode "\n" doesn't
+    /// register as a line break in many apps).
     static func type(_ text: String) {
         guard !text.isEmpty else { return }
         let source = CGEventSource(stateID: .combinedSessionState)
+        // Split on newlines: type each segment as text, press Return between them.
+        let segments = text.components(separatedBy: "\n")
+        for (index, segment) in segments.enumerated() {
+            if index > 0 { postReturn(source) }
+            typeUnicode(segment, source: source)
+        }
+    }
+
+    private static func typeUnicode(_ text: String, source: CGEventSource?) {
+        guard !text.isEmpty else { return }
         let units = Array(text.utf16)
         var i = 0
         let stride = 16  // keyboardSetUnicodeString is reliable in small batches
@@ -56,6 +67,14 @@ enum TextInjector {
             }
             i += stride
         }
+    }
+
+    private static func postReturn(_ source: CGEventSource?) {
+        let returnKey: CGKeyCode = 36  // kVK_Return
+        CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: true)?
+            .post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: false)?
+            .post(tap: .cghidEventTap)
     }
 
     /// Leaves text on the clipboard without restoring — used as a backstop

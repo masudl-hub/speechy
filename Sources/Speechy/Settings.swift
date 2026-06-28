@@ -13,6 +13,7 @@ final class Settings {
         static let language = "language"
         static let postProcessingEnabled = "postProcessingEnabled"
         static let cleanupEnabled = "cleanupEnabled"
+        static let selfCorrection = "selfCorrection"
         static let smartInsert = "smartInsert"
         static let cleanupModel = "cleanupModel"
         static let customPrompt = "customPrompt"
@@ -68,6 +69,13 @@ final class Settings {
     var cleanupEnabled: Bool {
         get { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.cleanupEnabled) }
+    }
+
+    /// Resolve spoken self-corrections ("no I mean…"). Only safe on 7B+, so it's
+    /// gated to that model in Cleanup; small models mangle non-corrections.
+    var selfCorrection: Bool {
+        get { defaults.object(forKey: Key.selfCorrection) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: Key.selfCorrection) }
     }
 
     /// Context-aware insertion: read the text before the cursor and adjust
