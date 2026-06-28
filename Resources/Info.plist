@@ -25,5 +25,7 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Speechy records your voice locally to transcribe it with an on-device Whisper model. Audio never leaves your Mac.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Speechy uses on-device speech recognition to transcribe your dictation when the Apple engine is selected. Audio stays on your Mac.</string>
 </dict>
 </plist>

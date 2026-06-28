@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let recorder = AudioRecorder()
     private let transcriber = Transcriber()
+    private let appleSpeech = AppleSpeech()
     private let hotkeys = HotkeyManager()
 
     private var targetApp: String = "Unknown"
@@ -21,8 +22,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wireAudioLevel()
 
         requestPermissions()
-        loadModel()
+        prepareEngine()
         refreshInstalledCleanupModels()
+    }
+
+    /// Get the selected STT engine ready: load the Whisper model, or authorize
+    /// Apple's on-device recognizer (which needs no download).
+    private func prepareEngine() {
+        if Settings.shared.sttEngine == "apple" {
+            AppleSpeech.requestAuthorization { [weak self] granted in
+                guard let self else { return }
+                self.state.modelReady = granted
+                self.state.phase = granted ? .idle : .error("Enable Speech Recognition")
+            }
+        } else {
+            loadModel()
+        }
     }
 
     private func refreshInstalledCleanupModels() {
@@ -169,7 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task {
             do {
-                let raw = try await transcriber.transcribe(samples: samples)
+                let raw =
+                    Settings.shared.sttEngine == "apple"
+                    ? try await appleSpeech.transcribe(samples: samples)
+                    : try await transcriber.transcribe(samples: samples)
                 guard !raw.isEmpty else { state.phase = .idle; return }
 
                 let pp = Settings.shared.postProcessingEnabled
@@ -235,10 +253,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// "Speech-to-text ▸" — the Whisper (voice → text) model + its vocabulary prompt.
     private func buildSpeechToTextItem() -> NSMenuItem {
+        let usingWhisper = Settings.shared.sttEngine == "whisper"
         let item = NSMenuItem(title: "Speech-to-text", action: nil, keyEquivalent: "")
         let sub = NSMenu()
+        sub.autoenablesItems = false
 
-        let modelItem = NSMenuItem(title: "Model", action: nil, keyEquivalent: "")
+        // Engine picker: Whisper (accurate) vs Apple (light).
+        let engineItem = NSMenuItem(title: "Engine", action: nil, keyEquivalent: "")
+        let engineMenu = NSMenu()
+        for e in Settings.sttEngines {
+            let mi = NSMenuItem(title: e.label, action: #selector(selectSttEngine(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = e.id
+            mi.state = (e.id == Settings.shared.sttEngine) ? .on : .off
+            engineMenu.addItem(mi)
+        }
+        engineItem.submenu = engineMenu
+        sub.addItem(engineItem)
+
+        // Whisper model + vocabulary only apply to the Whisper engine.
+        let modelItem = NSMenuItem(title: "Whisper model", action: nil, keyEquivalent: "")
+        modelItem.isEnabled = usingWhisper
         let modelMenu = NSMenu()
         for m in Settings.availableModels {
             let mi = NSMenuItem(title: m.label, action: #selector(selectModel(_:)), keyEquivalent: "")
@@ -253,6 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let vocab = NSMenuItem(
             title: "Custom vocabulary…", action: #selector(editVocabulary), keyEquivalent: "")
         vocab.target = self
+        vocab.isEnabled = usingWhisper
         sub.addItem(vocab)
 
         item.submenu = sub
@@ -374,6 +410,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Settings.shared.model = id
         statusItem?.menu = buildMenu()
         loadModel()
+    }
+
+    @objc private func selectSttEngine(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String, id != Settings.shared.sttEngine else { return }
+        Settings.shared.sttEngine = id
+        state.modelReady = false
+        state.phase = .loadingModel(progress: 0)
+        statusItem?.menu = buildMenu()
+        prepareEngine()
     }
 
     @objc private func editVocabulary() {

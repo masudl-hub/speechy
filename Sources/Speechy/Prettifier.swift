@@ -30,6 +30,9 @@ enum Prettifier {
         t = t.replacingOccurrences(of: " +([,.!?;:])", with: "$1", options: .regularExpression)
         t = t.replacingOccurrences(of: "[ \\t]{2,}", with: " ", options: .regularExpression)
         t = t.replacingOccurrences(of: " +\\n", with: "\n", options: .regularExpression)
+        // Tuck quotation marks against the quoted text: no space after “ or before ”.
+        t = t.replacingOccurrences(of: "\u{201C} +", with: "\u{201C}", options: .regularExpression)
+        t = t.replacingOccurrences(of: " +\u{201D}", with: "\u{201D}", options: .regularExpression)
 
         // 4. Capitalization: sentence starts + standalone "i" → "I".
         t = capitalizeSentences(t)
@@ -54,6 +57,11 @@ enum Prettifier {
         ("exclamation point", "!"),
         ("colon", ":"),
         ("semicolon", ";"),
+        // Quotation — the speaker marks the boundaries; we never guess them.
+        ("open quote", "\u{201C}"),
+        ("close quote", "\u{201D}"),
+        ("end quote", "\u{201D}"),
+        ("unquote", "\u{201D}"),
     ]
 
     private static let fillers = ["um", "uh", "erm", "uhh", "uhm", "hmm", "you know"]

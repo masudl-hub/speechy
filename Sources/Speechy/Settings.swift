@@ -8,6 +8,7 @@ final class Settings {
     private let defaults = UserDefaults.standard
 
     private enum Key {
+        static let sttEngine = "sttEngine"
         static let model = "model"
         static let language = "language"
         static let postProcessingEnabled = "postProcessingEnabled"
@@ -34,6 +35,13 @@ final class Settings {
             defaults.set(p.x, forKey: Key.floatyX)
             defaults.set(p.y, forKey: Key.floatyY)
         }
+    }
+
+    /// Speech-to-text engine: "whisper" (accurate, on-device, heavier) or
+    /// "apple" (macOS built-in on-device recognizer — light, fast, no download).
+    var sttEngine: String {
+        get { defaults.string(forKey: Key.sttEngine) ?? "whisper" }
+        set { defaults.set(newValue, forKey: Key.sttEngine) }
     }
 
     /// WhisperKit model identifier (substring match is fine; WhisperKit resolves it).
@@ -113,6 +121,12 @@ final class Settings {
         default: return "key"
         }
     }
+
+    /// Selectable speech-to-text engines.
+    static let sttEngines: [(id: String, label: String)] = [
+        ("whisper", "Whisper (accurate, on-device)"),
+        ("apple", "Apple (light, fast)"),
+    ]
 
     /// Catalog of selectable Whisper (speech-to-text) models, shown in the menu.
     static let availableModels: [(id: String, label: String)] = [
