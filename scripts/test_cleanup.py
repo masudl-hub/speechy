@@ -22,7 +22,8 @@ import sys
 import urllib.request
 from collections import Counter
 
-STRUCTURE_PROMPT = """You format dictated speech for readability. Keep EVERY word — never paraphrase, add, remove, or reorder words. Your only job is to join the words into natural sentences and paragraphs, and to use a bulleted list ONLY for a genuine list of parallel items. Never bullet ordinary sentences or trailing-off fragments like "and..." or "yeah, so...".
+STRUCTURE_PROMPT = """You format dictated speech for readability. Keep the speaker's exact wording, casual tone, and meaning. Your only job is to join the words into natural sentences and paragraphs, and to use a bulleted list ONLY for a genuine list of parallel items. Never bullet ordinary sentences or trailing-off fragments like "and..." or "yeah, so...".
+Do NOT expand abbreviations (keep "deps", "auth", "app", "repo"). Do NOT expand contractions, formalize, or swap words for fancier synonyms. Do NOT add words. You may drop pure filler (um, uh) and list connectives.
 
 Example A
 Input: i think the design is off the menu is cluttered separately the performance is bad the cold load is too slow
@@ -109,14 +110,36 @@ def word_diff(src, out):
     return added, removed
 
 
+# Mirrors Sources/Speechy/FidelityGuard.swift.
+FUNCTION_WORDS = {
+    "a", "an", "the", "and", "or", "but", "so", "to", "of", "in", "on", "at", "for",
+    "is", "are", "was", "were", "be", "do", "does", "did", "not", "it", "its", "as",
+    "by", "with", "that", "this", "we", "you", "he", "she", "they", "then", "if",
+}
+
+
+def guard_violations(src, out):
+    """Real meaning/tone violations: new/substituted content words the guard flags."""
+    sw = set(re.findall(r"\w+", src.lower()))
+    bad = []
+    for w in re.findall(r"\w+", out.lower()):
+        if w in sw or len(w) <= 2 or w in FUNCTION_WORDS:
+            continue
+        if any(s in w or w in s for s in sw):
+            continue
+        bad.append(w)
+    return bad
+
+
 def show(label, src, model):
     out = clean(src, model)
     added, removed = word_diff(src, out)
-    flag = "  ⚠️ WORDS CHANGED" if (added or removed) else "  ✓ words intact"
+    bad = guard_violations(src, out)
+    verdict = "🚩 GUARD FLAGS" if bad else "✅ guard ok"
     print(f"\n=== {label} ===")
     print(f"IN : {src}")
     print(f"OUT:\n{out}")
-    print(f"{flag}   added={added}  removed={removed}")
+    print(f"{verdict}  violations={bad}   (raw diff: added={added} removed={removed})")
 
 
 def main():

@@ -219,7 +219,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 state.lastText = cleaned
                 refreshHistoryMenu()
 
-                try? await Task.sleep(nanoseconds: 250_000_000)
+                // Fidelity guard: flag (advisory) if structuring reworded meaning/tone.
+                if doStructure, !FidelityGuard.isFaithful(source: prepared, output: cleaned) {
+                    state.phase = .error("⚠ check — may have reworded")
+                    try? await Task.sleep(nanoseconds: 1_600_000_000)
+                } else {
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                }
                 state.phase = .idle
             } catch {
                 state.phase = .error("Transcription failed")

@@ -29,9 +29,10 @@ enum Cleanup {
     // Prompt copy is long-form by nature.
     // swiftlint:disable line_length
 
-    /// Structure-only, taught by example: never changes a word.
+    /// Structure-only, taught by example: preserves meaning + tone.
     private static let structurePrompt = """
-        You format dictated speech for readability. Keep EVERY word — never paraphrase, add, remove, or reorder words. Your only job is to join the words into natural sentences and paragraphs, and to use a bulleted list ONLY for a genuine list of parallel items. Never bullet ordinary sentences or trailing-off fragments like "and..." or "yeah, so...".
+        You format dictated speech for readability. Keep the speaker's exact wording, casual tone, and meaning. Your only job is to join the words into natural sentences and paragraphs, and to use a bulleted list ONLY for a genuine list of parallel items. Never bullet ordinary sentences or trailing-off fragments like "and..." or "yeah, so...".
+        Do NOT expand abbreviations (keep "deps", "auth", "app", "repo"). Do NOT expand contractions, formalize, or swap words for fancier synonyms. Do NOT add words. You may drop pure filler (um, uh) and list connectives.
 
         Example A
         Input: i think the design is off the menu is cluttered separately the performance is bad the cold load is too slow
