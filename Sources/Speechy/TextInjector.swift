@@ -39,6 +39,26 @@ enum TextInjector {
         }
     }
 
+    /// Inserts text at the cursor by synthesizing Unicode key events — no
+    /// clipboard, and crucially NO Return/Enter key. Newlines go in as literal
+    /// text characters (insertText), which render as line breaks but can NEVER
+    /// trigger a send. Used for live streaming insertion.
+    static func type(_ text: String) {
+        guard !text.isEmpty else { return }
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let units = Array(text.utf16)
+        var i = 0
+        let stride = 16  // keyboardSetUnicodeString is reliable in small batches
+        while i < units.count {
+            var batch = Array(units[i..<min(i + stride, units.count)])
+            if let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) {
+                down.keyboardSetUnicodeString(stringLength: batch.count, unicodeString: &batch)
+                down.post(tap: .cghidEventTap)
+            }
+            i += stride
+        }
+    }
+
     /// Leaves text on the clipboard without restoring — used as a backstop
     /// when we want the user to be able to ⌘V manually.
     static func copyOnly(_ text: String) {

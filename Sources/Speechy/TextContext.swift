@@ -118,3 +118,35 @@ enum SmartJoin {
         return first.lowercased() + s.dropFirst()
     }
 }
+
+/// Inserts streamed cleanup tokens live: drops leading whitespace, applies the
+/// context-aware join (spacing/casing) to the first real content, holds back
+/// trailing whitespace, and types each piece via `TextInjector.type` (which
+/// never emits a Return key).
+@MainActor
+final class StreamInserter {
+    private let preceding: String?
+    private let casing: Bool
+    private var started = false
+    private var pendingWhitespace = ""
+
+    init(preceding: String?, casing: Bool) {
+        self.preceding = preceding
+        self.casing = casing
+    }
+
+    func feed(_ piece: String) {
+        if !started {
+            let stripped = String(piece.drop(while: { $0.isWhitespace }))
+            guard !stripped.isEmpty else { return }  // ignore leading-whitespace tokens
+            started = true
+            TextInjector.type(casing ? SmartJoin.adjust(stripped, preceding: preceding) : stripped)
+        } else if piece.allSatisfy({ $0.isWhitespace }) {
+            pendingWhitespace += piece  // hold — might be trailing
+        } else {
+            TextInjector.type(pendingWhitespace + piece)
+            pendingWhitespace = ""
+        }
+    }
+    // Any leftover pendingWhitespace is trailing → intentionally dropped.
+}

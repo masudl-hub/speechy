@@ -7,15 +7,6 @@ enum Cleanup {
 
     private static let ollamaURL = URL(string: "http://127.0.0.1:11434/api/generate")!
 
-    /// Returns cleaned text. Never throws — worst case it returns rule-based output.
-    static func process(_ raw: String) async -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-        guard Settings.shared.cleanupEnabled else { return ruleBased(trimmed) }
-        if let llm = await llmCleanup(trimmed) { return llm }
-        return ruleBased(trimmed)
-    }
-
     /// Preload the cleanup model so it's warm by the time we need it. Called when
     /// recording starts, so the cold-load overlaps speaking + transcription
     /// instead of stalling the paste. Fire-and-forget; safe if Ollama is down.
@@ -38,12 +29,24 @@ enum Cleanup {
     // Prompt copy is long-form by nature.
     // swiftlint:disable line_length
 
-    /// Structure-only: never changes a word (the safe default, any model).
+    /// Structure-only, taught by example: never changes a word.
     private static let structurePrompt = """
-        Add structure to this text — paragraph breaks, and bullet lists only for explicit lists. Change nothing else.
-        - Default to paragraphs: group related sentences, with a blank line between paragraphs.
-        - Use a bulleted list only when the speaker explicitly lists three or more distinct items. Never bullet ordinary prose.
-        Keep every word EXACTLY as written — never paraphrase, simplify, reword, reorder, add, or remove anything. Your job is to prettify, not rewrite. Output only the restructured text.
+        You format dictated speech for readability. Keep EVERY word — never paraphrase, add, remove, or reorder words. Your only job is to join the words into natural sentences and paragraphs, and to use a bulleted list ONLY for a genuine list of parallel items. Never bullet ordinary sentences or trailing-off fragments like "and..." or "yeah, so...".
+
+        Example A
+        Input: i think the design is off the menu is cluttered separately the performance is bad the cold load is too slow
+        Output:
+        I think the design is off, the menu is cluttered.
+
+        Separately, the performance is bad. The cold load is too slow.
+
+        Example B
+        Input: for launch we need to finish the landing page set up the email campaign and reach out to beta users
+        Output:
+        For launch we need to:
+        - Finish the landing page
+        - Set up the email campaign
+        - Reach out to beta users
         """
 
     /// Structure + self-correction: also resolves spoken corrections. Only used
@@ -66,28 +69,52 @@ enum Cleanup {
     private static func requestBody(_ text: String, stream: Bool) -> Data? {
         try? JSONSerialization.data(withJSONObject: [
             "model": Settings.shared.cleanupModel,
-            "prompt": "\(activePrompt)\n\nTranscript:\n\(text)\n\nFormatted:",
+            "prompt": "\(activePrompt)\n\nNow format this:\nInput: \(text)\nOutput:",
             "stream": stream,
             "keep_alive": "5m",  // warm while actively dictating, release after 5 min idle
-            "options": ["temperature": 0.2],
+            "options": ["temperature": 0.1],
         ])
     }
 
-    private static func llmCleanup(_ text: String) async -> String? {
+    /// Streaming cleanup: invokes `onChunk` with each token as it's generated so
+    /// the caller can insert text live. Returns the full text. Never throws —
+    /// falls back to the deterministic Prettifier (one chunk) if Ollama is down.
+    static func processStreaming(_ raw: String, onChunk: @escaping (String) async -> Void) async -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        guard Settings.shared.cleanupEnabled else {
+            let r = ruleBased(trimmed); await onChunk(r); return r
+        }
+        if let full = await streamLLM(trimmed, onChunk: onChunk) { return full }
+        let r = ruleBased(trimmed); await onChunk(r); return r
+    }
+
+    private static func streamLLM(
+        _ text: String, onChunk: @escaping (String) async -> Void
+    ) async
+        -> String?
+    {
         var request = URLRequest(url: ollamaURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = requestBody(text, stream: false)
+        request.httpBody = requestBody(text, stream: true)
         request.timeoutInterval = 30
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let out = json["response"] as? String
-            else { return nil }
-            let cleaned = out.trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.isEmpty ? nil : cleaned
+            let (bytes, response) = try await URLSession.shared.bytes(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+            var full = ""
+            for try await line in bytes.lines {
+                guard let data = line.data(using: .utf8),
+                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { continue }
+                if let piece = json["response"] as? String, !piece.isEmpty {
+                    full += piece
+                    await onChunk(piece)
+                }
+                if (json["done"] as? Bool) == true { break }
+            }
+            return full.isEmpty ? nil : full.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             return nil  // Ollama not running / timed out → caller falls back.
         }
