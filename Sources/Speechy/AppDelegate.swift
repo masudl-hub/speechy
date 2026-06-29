@@ -199,20 +199,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // spacing, filler, spoken commands. Never changes the words.
                 let prepared = doCasing ? Prettifier.clean(raw) : raw
 
-                let cleaned: String
-                if doStructure {
-                    // Layer 2 — LLM structure-only (paragraphs/lists), streamed live.
-                    state.phase = .cleaning
-                    let inserter = StreamInserter(preceding: preceding, casing: doCasing)
-                    cleaned = await Cleanup.processStreaming(prepared) { piece in
-                        await MainActor.run { inserter.feed(piece) }
-                    }
-                } else {
-                    // No structuring: insert the deterministically-prettified text atomically.
-                    state.phase = .pasting
-                    cleaned = prepared
-                    TextInjector.paste(doCasing ? SmartJoin.adjust(prepared, preceding: preceding) : prepared)
-                }
+                // Layer 2 — optional LLM structure (paragraphs/lists). Off by default.
+                state.phase = doStructure ? .cleaning : .pasting
+                let structured = doStructure ? await Cleanup.process(prepared) : prepared
+                let cleaned = structured.isEmpty ? prepared : structured
+
+                // Insert atomically via the clipboard — NEVER via synthetic key
+                // events, so a stray Return can never send a message.
+                state.phase = .pasting
+                TextInjector.paste(doCasing ? SmartJoin.adjust(cleaned, preceding: preceding) : cleaned)
 
                 HistoryStore.shared.append(raw: raw, cleaned: cleaned, app: targetApp)
                 state.lastText = cleaned

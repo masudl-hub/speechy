@@ -65,9 +65,11 @@ final class Settings {
         set { defaults.set(newValue, forKey: Key.postProcessingEnabled) }
     }
 
-    /// "Structuring": the local-LLM pass (filler removal, punctuation, lists, paragraphs).
+    /// "Structuring": the optional local-LLM pass (paragraphs/lists). Off by
+    /// default — small models over-bullet, so it's opt-in. The deterministic
+    /// Prettifier (casing/spacing/punctuation) is what runs by default.
     var cleanupEnabled: Bool {
-        get { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? true }
+        get { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? false }
         set { defaults.set(newValue, forKey: Key.cleanupEnabled) }
     }
 

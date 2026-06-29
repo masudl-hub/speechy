@@ -7,9 +7,13 @@ enum Cleanup {
 
     private static let ollamaURL = URL(string: "http://127.0.0.1:11434/api/generate")!
 
-    /// Returns cleaned text (non-streaming). Never throws.
+    /// Returns cleaned text. Never throws — worst case it returns rule-based output.
     static func process(_ raw: String) async -> String {
-        await processStreaming(raw) { _ in }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        guard Settings.shared.cleanupEnabled else { return ruleBased(trimmed) }
+        if let llm = await llmCleanup(trimmed) { return llm }
+        return ruleBased(trimmed)
     }
 
     /// Preload the cleanup model so it's warm by the time we need it. Called when
@@ -69,42 +73,21 @@ enum Cleanup {
         ])
     }
 
-    /// Streaming cleanup: invokes `onChunk` with each token as it's generated so
-    /// the caller can insert text live (perceived-instant). Returns the full text.
-    /// Never throws — falls back to rule-based (emitted as one chunk) if Ollama is down.
-    static func processStreaming(_ raw: String, onChunk: @escaping (String) async -> Void) async -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-        guard Settings.shared.cleanupEnabled else {
-            let r = ruleBased(trimmed); await onChunk(r); return r
-        }
-        if let full = await streamLLM(trimmed, onChunk: onChunk) { return full }
-        let r = ruleBased(trimmed); await onChunk(r); return r
-    }
-
-    private static func streamLLM(_ text: String, onChunk: @escaping (String) async -> Void) async -> String?
-    {
+    private static func llmCleanup(_ text: String) async -> String? {
         var request = URLRequest(url: ollamaURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = requestBody(text, stream: true)
+        request.httpBody = requestBody(text, stream: false)
         request.timeoutInterval = 30
 
         do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
-            var full = ""
-            for try await line in bytes.lines {
-                guard let data = line.data(using: .utf8),
-                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                else { continue }
-                if let piece = json["response"] as? String, !piece.isEmpty {
-                    full += piece
-                    await onChunk(piece)
-                }
-                if (json["done"] as? Bool) == true { break }
-            }
-            return full.isEmpty ? nil : full.trimmingCharacters(in: .whitespacesAndNewlines)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let out = json["response"] as? String
+            else { return nil }
+            let cleaned = out.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty ? nil : cleaned
         } catch {
             return nil  // Ollama not running / timed out → caller falls back.
         }
