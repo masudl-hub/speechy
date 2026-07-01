@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Minimal floaty: a tiny collapsed pill at rest, a live waveform while
-/// listening, a self-oscillating wave while processing, a hover hint.
-/// The pill animates its size *inside a fixed window* (so hover never jitters).
-/// Click = start/stop; drag = reposition.
+/// The floaty — an iridescent fluid "pool" that morphs between states:
+/// a tiny calm pill at rest, an audio-reactive pool while listening, a
+/// coalescing shimmer while processing. Click = start/stop; drag = reposition.
 struct FloatyView: View {
     @ObservedObject var state: AppState
     var onMove: (CGSize) -> Void
@@ -14,14 +13,16 @@ struct FloatyView: View {
     var body: some View {
         ZStack {
             Capsule(style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(.black.opacity(0.25))
+                .overlay(fluid.clipShape(Capsule(style: .continuous)))
+                .overlay(grain.clipShape(Capsule(style: .continuous)))
+                .overlay(content)
                 .overlay(
                     Capsule(style: .continuous)
-                        .strokeBorder(.white.opacity(0.10), lineWidth: 0.5)
+                        .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
                 )
-                .overlay(content)
                 .frame(width: pillSize.width, height: pillSize.height)
-                .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
+                .shadow(color: glow.opacity(0.55), radius: glowRadius, y: 1)
                 .contentShape(Capsule())
                 .onHover { state.hovering = $0 }
                 .gesture(
@@ -37,101 +38,141 @@ struct FloatyView: View {
                         .onEnded { value in
                             lastTranslation = .zero
                             let moved = abs(value.translation.width) + abs(value.translation.height)
-                            if moved < 4 {
-                                state.onActivate?()
-                            }  // it was a click
-                            else {
-                                onMoveEnded()
-                            }  // it was a drag
+                            if moved < 4 { state.onActivate?() } else { onMoveEnded() }
                         }
                 )
-                .animation(.spring(response: 0.3, dampingFraction: 0.85), value: pillSize)
+                .animation(.spring(response: 0.34, dampingFraction: 0.82), value: pillSize)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Pill size per phase (animated inside the fixed window)
+    // MARK: - Fluid fill
 
-    private var pillSize: CGSize {
-        switch state.phase {
-        case .listening, .locked, .transcribing, .cleaning, .pasting:
-            return CGSize(width: 124, height: 30)
-        case .loadingModel:
-            return CGSize(width: 58, height: 20)
-        case .error:
-            return CGSize(width: 224, height: 30)
-        case .idle:
-            return state.hovering ? CGSize(width: 264, height: 30) : CGSize(width: 46, height: 15)
-        }
-    }
-
-    // MARK: - Content per phase
-
-    @ViewBuilder private var content: some View {
-        switch state.phase {
-        case .listening, .locked:
-            Waveform(level: CGFloat(state.audioLevel), live: true).padding(.horizontal, 10)
-
-        case .transcribing, .cleaning, .pasting:
-            Waveform(level: 0.6, live: false).padding(.horizontal, 10)  // self-oscillating
-
-        case .loadingModel(let p):
-            Text("\(Int(p * 100))%")
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-
-        case .error(let msg):
-            Text(msg)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.yellow).lineLimit(1).padding(.horizontal, 10)
-
-        case .idle:
-            if state.hovering {
-                Text("hold \(Settings.shared.hotkeyLabel) · tap \(Settings.shared.holdComboLabel) to lock")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary).lineLimit(1).padding(.horizontal, 12)
-            } else {
-                HStack(spacing: 2.5) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        Circle().fill(.secondary.opacity(0.45)).frame(width: 2.5, height: 2.5)
-                    }
-                }
+    @ViewBuilder private var fluid: some View {
+        if #available(macOS 15.0, *) {
+            FluidMesh(activity: activity, palette: palette)
+        } else {
+            // Fallback for macOS 14: a slowly rotating iridescent gradient.
+            TimelineView(.animation) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                AngularGradient(colors: palette + [palette[0]], center: .center,
+                                angle: .degrees(t.truncatingRemainder(dividingBy: 12) / 12 * 360))
+                    .blur(radius: 8)
             }
         }
     }
+
+    private var grain: some View {
+        Rectangle()
+            .fill(.white.opacity(0.03))
+            .blendMode(.overlay)
+    }
+
+    // MARK: - Per-phase content (only for non-fluid states)
+
+    @ViewBuilder private var content: some View {
+        switch state.phase {
+        case .loadingModel(let p):
+            Text("\(Int(p * 100))%")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.85))
+        case .error(let msg):
+            Text(msg)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white).lineLimit(1).padding(.horizontal, 10)
+        default:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Phase → shape, motion, color
+
+    private var pillSize: CGSize {
+        switch state.phase {
+        case .listening, .locked: return CGSize(width: 208, height: 60)
+        case .transcribing, .cleaning, .pasting: return CGSize(width: 132, height: 44)
+        case .loadingModel: return CGSize(width: 62, height: 24)
+        case .error: return CGSize(width: 224, height: 30)
+        case .idle: return state.hovering ? CGSize(width: 64, height: 22) : CGSize(width: 48, height: 17)
+        }
+    }
+
+    /// Fluid agitation, 0…1.
+    private var activity: CGFloat {
+        switch state.phase {
+        case .listening, .locked: return max(0.18, CGFloat(state.audioLevel))
+        case .transcribing, .cleaning, .pasting: return 0.5
+        case .idle: return state.hovering ? 0.22 : 0.12
+        default: return 0.15
+        }
+    }
+
+    private var palette: [Color] {
+        switch state.phase {
+        case .transcribing, .cleaning, .pasting: return Self.processing
+        default: return Self.listening
+        }
+    }
+
+    private var glow: Color {
+        switch state.phase {
+        case .transcribing, .cleaning, .pasting: return Color(red: 0.1, green: 0.7, blue: 0.85)
+        default: return Color(red: 0.6, green: 0.36, blue: 0.96)
+        }
+    }
+
+    private var glowRadius: CGFloat {
+        switch state.phase {
+        case .listening, .locked: return 18
+        case .transcribing, .cleaning, .pasting: return 12
+        default: return 5
+        }
+    }
+
+    // Iridescent palettes (9 colors → 3×3 mesh).
+    static let listening: [Color] = [
+        Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.72, green: 0.32, blue: 0.85),
+        Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.93, green: 0.28, blue: 0.60),
+        Color(red: 0.70, green: 0.30, blue: 0.92), Color(red: 0.45, green: 0.42, blue: 0.98),
+        Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.90, green: 0.30, blue: 0.62),
+        Color(red: 0.40, green: 0.50, blue: 0.96),
+    ]
+    static let processing: [Color] = [
+        Color(red: 0.06, green: 0.71, blue: 0.83), Color(red: 0.30, green: 0.55, blue: 0.95),
+        Color(red: 0.06, green: 0.71, blue: 0.83), Color(red: 0.45, green: 0.42, blue: 0.98),
+        Color(red: 0.20, green: 0.62, blue: 0.92), Color(red: 0.55, green: 0.36, blue: 0.96),
+        Color(red: 0.06, green: 0.71, blue: 0.83), Color(red: 0.40, green: 0.48, blue: 0.96),
+        Color(red: 0.10, green: 0.66, blue: 0.88),
+    ]
 }
 
-/// Row of bars. `live`: heights follow the mic level. `!live`: self-oscillates
-/// (used while processing) via an animation timeline.
-private struct Waveform: View {
-    var level: CGFloat
-    var live: Bool
-    private let bars = 11
+/// Audio-reactive iridescent mesh. Corners are pinned; mid-edge and center
+/// control points wobble with time + `activity` to make the fluid roll.
+@available(macOS 15.0, *)
+private struct FluidMesh: View {
+    var activity: CGFloat
+    var palette: [Color]
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 2.5) {
-                ForEach(0..<bars, id: \.self) { i in
-                    Capsule()
-                        .fill(.primary.opacity(0.85))
-                        .frame(width: 2.5, height: barHeight(i, t))
-                }
-            }
-            .frame(maxHeight: .infinity)
+            MeshGradient(width: 3, height: 3, points: points(t), colors: palette)
+                .blur(radius: 4)
         }
     }
 
-    private func barHeight(_ i: Int, _ t: TimeInterval) -> CGFloat {
-        let mid = Double(bars - 1) / 2
-        let dist = abs(Double(i) - mid) / mid
-        let envelope = 1.0 - 0.55 * dist
-        if live {
-            let wobble = 0.65 + 0.35 * sin(t * 9 + Double(i))
-            return 4 + CGFloat(max(0.06, level) * envelope * wobble) * 18
-        } else {
-            let wave = 0.5 + 0.5 * sin(t * 6 + Double(i) * 0.7)
-            return 4 + CGFloat(wave * envelope) * 14
+    private func points(_ time: TimeInterval) -> [SIMD2<Float>] {
+        let amp = Float(0.09 + activity * 0.16)
+        let t = Float(time)
+        func p(_ x: Float, _ y: Float, _ seed: Float) -> SIMD2<Float> {
+            let dx = sin(t * 1.3 + seed) * amp
+            let dy = cos(t * 1.05 + seed * 1.7) * amp
+            return SIMD2(min(1, max(0, x + dx)), min(1, max(0, y + dy)))
         }
+        return [
+            SIMD2(0, 0), p(0.5, 0, 1), SIMD2(1, 0),
+            p(0, 0.5, 2), p(0.5, 0.5, 3), p(1, 0.5, 4),
+            SIMD2(0, 1), p(0.5, 1, 5), SIMD2(1, 1),
+        ]
     }
 }
