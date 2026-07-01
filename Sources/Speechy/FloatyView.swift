@@ -17,7 +17,7 @@ struct FloatyView: View {
             Capsule(style: .continuous)
                 .fill(.black.opacity(0.35))
                 .overlay(fluid.clipShape(Capsule(style: .continuous)))
-                .overlay(GrainOverlay(opacity: grainOpacity).clipShape(Capsule(style: .continuous)))
+                .overlay(DitherOverlay(opacity: ditherOpacity).clipShape(Capsule(style: .continuous)))
                 .overlay(content)
                 .overlay(
                     Capsule(style: .continuous)
@@ -121,7 +121,7 @@ struct FloatyView: View {
     // Duller at rest: desaturate + darken; vivid when active.
     private var saturation: Double { isResting ? 0.45 : 1.0 }
     private var brightnessShift: Double { isResting ? -0.22 : 0.0 }
-    private var grainOpacity: Double { isResting ? 0.30 : 0.20 }
+    private var ditherOpacity: Double { isResting ? 0.16 : 0.12 }
 
     private var glow: Color {
         switch state.phase {
@@ -168,13 +168,13 @@ private struct FluidMesh: View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             MeshGradient(width: 4, height: 4, points: points(t), colors: colors)
-                .blur(radius: 7)
+                .blur(radius: 6)
         }
     }
 
     private func points(_ time: TimeInterval) -> [SIMD2<Float>] {
-        let amp = Float(0.045 + activity * 0.075)
-        let t = Float(time)
+        let amp = Float(0.03 + activity * 0.055)
+        let t = Float(time) * 0.55  // slow, soothing evolution
         let n = 4
         var pts: [SIMD2<Float>] = []
         pts.reserveCapacity(n * n)
@@ -188,8 +188,8 @@ private struct FluidMesh: View {
                     continue
                 }
                 let s = Float(i * 7 + j * 13)
-                let dx = (sin(t * 0.9 + s) + 0.55 * sin(t * 1.7 + s * 2.3)) * amp
-                let dy = (cos(t * 0.8 + s * 1.3) + 0.55 * cos(t * 1.5 + s)) * amp
+                let dx = (sin(t + s) + 0.4 * sin(t * 1.7 + s * 2.3)) * amp
+                let dy = (cos(t * 0.9 + s * 1.3) + 0.4 * cos(t * 1.5 + s)) * amp
                 pts.append(SIMD2(min(1, max(0, x + dx)), min(1, max(0, y + dy))))
             }
         }
@@ -197,39 +197,61 @@ private struct FluidMesh: View {
     }
 }
 
-/// Boiling film grain — a tiled random-noise texture whose offset jitters each
-/// frame so it feels alive.
-private struct GrainOverlay: View {
+/// Static ordered (Bayer) dither — a crisp, regular stipple that evokes the
+/// dithered-gradient aesthetic. Not animated (dither is stable) and kept subtle.
+private struct DitherOverlay: View {
     var opacity: Double
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            GrainTexture.image
-                .resizable(resizingMode: .tile)
-                .opacity(opacity)
-                .blendMode(.overlay)
-                .offset(x: CGFloat(Int(t * 24) % 7), y: CGFloat(Int(t * 19) % 5))
-        }
+        DitherTexture.image
+            .resizable(resizingMode: .tile)
+            .interpolation(.none)  // crisp dots, no smoothing between cells
+            .opacity(opacity)
+            .blendMode(.overlay)
     }
 }
 
-private enum GrainTexture {
+private enum DitherTexture {
+    /// 8×8 Bayer ordered-dither tile, mapped around mid-gray so an `overlay`
+    /// blend nudges the gradient up/down in a regular pattern.
     static let image: Image = {
-        let size = 128
-        var pixels = [UInt8](repeating: 0, count: size * size * 4)
-        for i in 0..<(size * size) {
-            let v = UInt8.random(in: 55...205)
-            pixels[i * 4] = v
-            pixels[i * 4 + 1] = v
-            pixels[i * 4 + 2] = v
-            pixels[i * 4 + 3] = 255
+        let n = 8
+        let bayer = makeBayer(n)  // values 0 ..< n*n
+        let maxVal = Double(n * n - 1)
+        var pixels = [UInt8](repeating: 0, count: n * n * 4)
+        for y in 0..<n {
+            for x in 0..<n {
+                let g = UInt8(72 + Int(Double(bayer[y][x]) / maxVal * 112))  // 72…184
+                let i = (y * n + x) * 4
+                pixels[i] = g
+                pixels[i + 1] = g
+                pixels[i + 2] = g
+                pixels[i + 3] = 255
+            }
         }
         let cs = CGColorSpaceCreateDeviceRGB()
         let ctx = CGContext(
-            data: &pixels, width: size, height: size, bitsPerComponent: 8,
-            bytesPerRow: size * 4, space: cs,
+            data: &pixels, width: n, height: n, bitsPerComponent: 8,
+            bytesPerRow: n * 4, space: cs,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         return Image(decorative: ctx.makeImage()!, scale: 1)
     }()
+
+    /// Recursive Bayer matrix of side `order` (a power of two).
+    private static func makeBayer(_ order: Int) -> [[Int]] {
+        guard order > 1 else { return [[0]] }
+        let small = makeBayer(order / 2)
+        let h = small.count
+        var m = Array(repeating: Array(repeating: 0, count: order), count: order)
+        for y in 0..<h {
+            for x in 0..<h {
+                let v = small[y][x] * 4
+                m[y][x] = v
+                m[y][x + h] = v + 2
+                m[y + h][x] = v + 3
+                m[y + h][x + h] = v + 1
+            }
+        }
+        return m
+    }
 }
