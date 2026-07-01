@@ -55,9 +55,11 @@ struct FloatyView: View {
             // Fallback for macOS 14: a slowly rotating iridescent gradient.
             TimelineView(.animation) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
-                AngularGradient(colors: palette + [palette[0]], center: .center,
-                                angle: .degrees(t.truncatingRemainder(dividingBy: 12) / 12 * 360))
-                    .blur(radius: 8)
+                AngularGradient(
+                    colors: palette + [palette[0]], center: .center,
+                    angle: .degrees(t.truncatingRemainder(dividingBy: 12) / 12 * 360)
+                )
+                .blur(radius: 8)
             }
         }
     }
