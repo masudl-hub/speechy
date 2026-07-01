@@ -5,7 +5,7 @@ import SwiftUI
 /// on every Space. It never resizes or re-centers itself — the pill animates
 /// *inside* it — so hover never jitters. Draggable; position persists.
 final class FloatingPanel: NSPanel {
-    private static let canvas = NSSize(width: 300, height: 120)
+    private static let canvas = NSSize(width: 190, height: 90)
 
     init(state: AppState) {
         super.init(

@@ -65,7 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func wireAudioLevel() {
         recorder.onLevel = { [weak self] level in
-            Task { @MainActor in self?.state.audioLevel = level }
+            Task { @MainActor in
+                guard let self else { return }
+                // Exponential smoothing → the fluid glides instead of jumping.
+                self.state.audioLevel = self.state.audioLevel * 0.7 + level * 0.3
+            }
         }
     }
 
