@@ -119,20 +119,23 @@ enum SmartJoin {
     }
 }
 
-/// Inserts streamed cleanup tokens live: drops leading whitespace, applies the
-/// context-aware join (spacing/casing) to the first real content, holds back
-/// trailing whitespace, and types each piece via `TextInjector.type` (which
-/// never emits a Return key).
+/// Inserts streamed cleanup tokens live. Words type in via `TextInjector.type`
+/// (Unicode, never a Return key). Whitespace that contains newlines is inserted
+/// via a clipboard paste instead — so paragraph breaks render as real blank
+/// lines (synthetic-typed "\n\n" gets collapsed by many apps). The user's
+/// clipboard is snapshotted at the start and restored in `finish()`.
 @MainActor
 final class StreamInserter {
     private let preceding: String?
     private let casing: Bool
     private var started = false
     private var pendingWhitespace = ""
+    private let savedClipboard: String?
 
     init(preceding: String?, casing: Bool) {
         self.preceding = preceding
         self.casing = casing
+        savedClipboard = NSPasteboard.general.string(forType: .string)
     }
 
     func feed(_ piece: String) {
@@ -144,9 +147,30 @@ final class StreamInserter {
         } else if piece.allSatisfy({ $0.isWhitespace }) {
             pendingWhitespace += piece  // hold — might be trailing
         } else {
-            TextInjector.type(pendingWhitespace + piece)
-            pendingWhitespace = ""
+            flushWhitespace()
+            TextInjector.type(piece)
         }
     }
-    // Any leftover pendingWhitespace is trailing → intentionally dropped.
+
+    /// Emit held whitespace: newlines via clipboard (real blank lines), plain
+    /// spaces via typing. Trailing whitespace is dropped by never calling this
+    /// after the last content token.
+    private func flushWhitespace() {
+        guard !pendingWhitespace.isEmpty else { return }
+        if pendingWhitespace.contains("\n") {
+            TextInjector.pasteRaw(pendingWhitespace)
+        } else {
+            TextInjector.type(pendingWhitespace)
+        }
+        pendingWhitespace = ""
+    }
+
+    /// Restore the user's clipboard once the paste(s) have landed.
+    func finish() {
+        guard let saved = savedClipboard else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(saved, forType: .string)
+        }
+    }
 }

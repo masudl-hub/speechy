@@ -208,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     cleaned = await Cleanup.processStreaming(prepared) { piece in
                         await MainActor.run { inserter.feed(piece) }
                     }
+                    inserter.finish()
                 } else {
                     // No structuring: paste the prettified text atomically.
                     state.phase = .pasting

@@ -59,6 +59,17 @@ enum TextInjector {
         }
     }
 
+    /// Pastes text via the clipboard (⌘V) without saving/restoring — the caller
+    /// manages the clipboard. Used mid-stream to insert newlines, which render
+    /// as real blank lines (unlike synthetic-typed "\n", which apps collapse).
+    static func pasteRaw(_ text: String) {
+        guard !text.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        postCommandV()
+    }
+
     /// Leaves text on the clipboard without restoring — used as a backstop
     /// when we want the user to be able to ⌘V manually.
     static func copyOnly(_ text: String) {
