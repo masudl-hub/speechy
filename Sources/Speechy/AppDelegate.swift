@@ -199,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // spacing, filler, spoken commands. Never changes the words.
                 let prepared = doCasing ? Prettifier.clean(raw) : raw
 
+                let suffix = Settings.shared.alphaDisclaimer ? " " + Settings.alphaDisclaimerText : ""
                 let cleaned: String
                 if doStructure {
                     // Layer 2 — LLM structuring (paragraphs/lists), streamed live
@@ -209,11 +210,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         await MainActor.run { inserter.feed(piece) }
                     }
                     inserter.finish()
+                    if !suffix.isEmpty { TextInjector.type(suffix) }
                 } else {
                     // No structuring: paste the prettified text atomically.
                     state.phase = .pasting
                     cleaned = prepared
-                    TextInjector.paste(doCasing ? SmartJoin.adjust(prepared, preceding: preceding) : prepared)
+                    let joined = doCasing ? SmartJoin.adjust(prepared, preceding: preceding) : prepared
+                    TextInjector.paste(joined + suffix)
                 }
 
                 HistoryStore.shared.append(raw: raw, cleaned: cleaned, app: targetApp)
@@ -245,6 +248,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(buildSpeechToTextItem())
         menu.addItem(buildPostProcessingItem())
+
+        let alpha = NSMenuItem(
+            title: "Alpha disclaimer", action: #selector(toggleAlphaDisclaimer), keyEquivalent: "")
+        alpha.target = self
+        alpha.state = Settings.shared.alphaDisclaimer ? .on : .off
+        alpha.toolTip = Settings.alphaDisclaimerText
+        menu.addItem(alpha)
 
         menu.addItem(.separator())
         let historyItem = NSMenuItem(title: "History (24h)", action: nil, keyEquivalent: "")
@@ -396,6 +406,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePostProcessing() {
         Settings.shared.postProcessingEnabled.toggle()
+        statusItem?.menu = buildMenu()
+    }
+
+    @objc private func toggleAlphaDisclaimer() {
+        Settings.shared.alphaDisclaimer.toggle()
         statusItem?.menu = buildMenu()
     }
 

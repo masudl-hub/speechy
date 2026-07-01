@@ -16,6 +16,7 @@ final class Settings {
         static let selfCorrection = "selfCorrection"
         static let smartInsert = "smartInsert"
         static let cleanupModel = "cleanupModel"
+        static let alphaDisclaimer = "alphaDisclaimer"
         static let customPrompt = "customPrompt"
         static let hotkeyKeyCode = "hotkeyKeyCode"
         static let holdKeyCode = "holdKeyCode"
@@ -87,9 +88,21 @@ final class Settings {
 
     /// Local Ollama model used for the cleanup pass.
     var cleanupModel: String {
-        get { defaults.string(forKey: Key.cleanupModel) ?? "qwen2.5:3b-instruct" }
+        get { defaults.string(forKey: Key.cleanupModel) ?? "qwen2.5:7b-instruct" }
         set { defaults.set(newValue, forKey: Key.cleanupModel) }
     }
+
+    /// Append an "alpha" note to each transcription giving a downstream reader
+    /// (usually an LLM) context that this was dictated and may contain errors.
+    var alphaDisclaimer: Bool {
+        get { defaults.object(forKey: Key.alphaDisclaimer) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: Key.alphaDisclaimer) }
+    }
+
+    static let alphaDisclaimerText =
+        "[This was dictated with a new speech-to-text app and may contain "
+        + "transcription errors. If anything seems contradictory or confusing, "
+        + "please pause and ask me to clarify rather than assuming it's correct.]"
 
     /// Custom vocabulary / initial-prompt text. The single biggest lever for domain words.
     /// Fed to Whisper as prompt tokens to bias decoding toward your jargon, names, products.
